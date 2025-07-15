@@ -8,9 +8,9 @@ int main(){
         printf("shell> ");
         fflush(stdout);
 
-        if(!fgets(input,1024,stdin)){
+        if(!fgets(input,1024,stdin)){            
             break;
-        }
+        } 
         run_command(input);
     }
 }
