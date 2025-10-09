@@ -1,0 +1,11 @@
+# Compiled binaries
+tsh
+a.out
+
+# Object files
+*.o
+
+# Editor backup files
+*~
+*.swp
+.vscode/
