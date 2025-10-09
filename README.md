@@ -1,8 +1,3 @@
-(The file `/mnt/c/Users/THINKPAD L13/shell/Shell/README.md` exists, but is empty)
-tsh - Tiny Enhanced Shell
-=========================
-
-This repository contains a small Unix-like shell written in C. It is designed as a learning project but includes features that make it suitable for showcasing on a resume.
 
 Features
 - Quotes-aware tokenization (single and double quotes)
