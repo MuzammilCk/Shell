@@ -10,6 +10,7 @@
 #include "job_control.h"
 #include "builtins.h"
 #include "readline.h"
+#include <ctype.h>
 
 static volatile pid_t fg_pgid = 0;
 static int last_exit_status = 0;
@@ -29,8 +30,13 @@ void sigtstp_handler(int sig) {
 }
 
 static void execute_pipeline(command_t cmds[], int ncmds, int background, char *origline) {
+    sigset_t mask, prev_mask;
+    sigemptyset(&mask);
+    sigaddset(&mask, SIGCHLD);
+    sigprocmask(SIG_BLOCK, &mask, &prev_mask);
+
     int pipes[2*(MAX_CMDS)];
-    for (int i=0;i<ncmds-1;i++) if (pipe(pipes + i*2) < 0) { perror("pipe"); return; }
+    for (int i=0;i<ncmds-1;i++) if (pipe(pipes + i*2) < 0) { perror("pipe"); sigprocmask(SIG_SETMASK, &prev_mask, NULL); return; }
 
     pid_t pgid = 0;
 
@@ -40,6 +46,7 @@ static void execute_pipeline(command_t cmds[], int ncmds, int background, char *
         if (pid == 0) {
             signal(SIGINT, SIG_DFL);
             signal(SIGCHLD, SIG_DFL);
+            sigprocmask(SIG_SETMASK, &prev_mask, NULL); // Unblock signals in child
             if (pgid == 0) pgid = getpid();
             setpgid(0, pgid);
 
@@ -78,10 +85,12 @@ static void execute_pipeline(command_t cmds[], int ncmds, int background, char *
         int jid = add_job(pgid, origline);
         if (jid < 0) fprintf(stderr, "tsh: cannot add job\n");
         else printf("[%d] %d\n", jid, pgid);
+        sigprocmask(SIG_SETMASK, &prev_mask, NULL); // Unblock
     } else {
         fg_pgid = pgid;
         int status;
         
+        // SIGCHLD is blocked, so waitpid will see the changes, preventing race with handler
         while (waitpid(-pgid, &status, WUNTRACED) > 0) {
             if (WIFSTOPPED(status)) {
                 printf("\n");
@@ -100,6 +109,7 @@ static void execute_pipeline(command_t cmds[], int ncmds, int background, char *
             }
         }
         fg_pgid = 0;
+        sigprocmask(SIG_SETMASK, &prev_mask, NULL); // Unblock
     }
 }
 
@@ -107,10 +117,27 @@ static char* expand_variables(char *input) {
     static char buf[MAX_LINE];
     char *p = input;
     char *q = buf;
-    while (*p && (q - buf < MAX_LINE - 10)) {
-        if (*p == '$' && *(p+1) == '?') {
-            p += 2;
-            q += sprintf(q, "%d", last_exit_status);
+    while (*p && (q - buf < MAX_LINE - 100)) { // Safety margin
+        if (*p == '$') {
+            p++; // skip '$'
+            if (*p == '?') {
+                p++;
+                q += sprintf(q, "%d", last_exit_status);
+            } else if (isalpha((unsigned char)*p) || *p == '_') {
+                char varname[256];
+                int v = 0;
+                while (*p && (isalnum((unsigned char)*p) || *p == '_') && v < 255) {
+                    varname[v++] = *p++;
+                }
+                varname[v] = '\0';
+                char *val = getenv(varname);
+                if (val) {
+                    // Copy value ensuring no overflow
+                    while (*val && (q - buf < MAX_LINE - 1)) *q++ = *val++;
+                }
+            } else {
+                *q++ = '$'; // Not a var, keep $
+            }
         } else {
             *q++ = *p++;
         }
@@ -174,7 +201,6 @@ int main(void) {
             path = cwd + strlen(home);
             if (*path == '\0') path = "~";
         }
-        
         char prompt[8192];
         char display_path[4096];
         if (home && strncmp(cwd, home, strlen(home)) == 0) {

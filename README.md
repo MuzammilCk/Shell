@@ -14,11 +14,13 @@ A professional, feature-rich C implementation of a Unix shell, designed to demon
     - **Resume**: Use `bg` to continue in background, `fg` to bring to foreground.
 - **Memory Safety**: Audited memory management for zero leaks during standard operation. `free_jobs` and `free_history` ensure clean shutdown.
 - **Environment Variables**: Builtin `export` and `unset` commands, with `$?` exit status expansion.
+- **Wildcards (Globbing)**: Support for `*` and `?` wildcard expansion in command arguments.
 
 ### User Experience
 - **Custom Prompt**: Informative, colored prompt showing `user@host:path$`.
 - **Line Editing**: Custom raw-mode `readline` implementation providing:
     - **History Navigation**: Up/Down arrow keys.
+    - **Tab Completion**: Auto-completion for filenames in the current directory.
     - **Editing**: Backspace and insertion.
     - No external dependency on `libreadline`.
 

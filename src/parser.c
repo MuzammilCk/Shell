@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include <glob.h>
 #include "parser.h"
 
 static char *next_token(char **s) {
@@ -83,6 +84,36 @@ int parse_line(char *line, command_t cmds[], int *background) {
             *background = 1;
             continue;
         }
+
+        // Globbing check
+        if (strchr(tok, '*') || strchr(tok, '?')) {
+            glob_t glob_result;
+            memset(&glob_result, 0, sizeof(glob_result));
+            
+            // Flags: GLOB_NOCHECK (return pattern if no match), GLOB_TILDE (expand ~)
+            // But GLOB_NOCHECK matches the requirement "Handle GLOB_NOMATCH (keep the original token)"
+            int return_value = glob(tok, GLOB_NOCHECK | GLOB_TILDE, NULL, &glob_result);
+            
+            if (return_value != 0) {
+                // Error or no match (if NOCHECK not used, but we used it, so it returns single item on no match)
+                // If error, just use token
+                if (glob_result.gl_pathc > 0) { 
+                    // Should theoretically not happen on error unless partial?
+                    // Safe fallback
+                } else {
+                     cmds[cmd_idx].argv[arg_idx++] = tok;
+                     if (arg_idx >= MAX_ARGS-1) { fprintf(stderr, "tsh: too many args\n"); return -1; }
+                }
+            } else {
+                 for (size_t i = 0; i < glob_result.gl_pathc; ++i) {
+                     cmds[cmd_idx].argv[arg_idx++] = strdup(glob_result.gl_pathv[i]);
+                     if (arg_idx >= MAX_ARGS-1) { fprintf(stderr, "tsh: too many args\n"); globfree(&glob_result); return -1; }
+                 }
+            }
+            globfree(&glob_result);
+            continue;
+        }
+
         cmds[cmd_idx].argv[arg_idx++] = tok;
         if (arg_idx >= MAX_ARGS-1) { fprintf(stderr, "tsh: too many args\n"); return -1; }
     }

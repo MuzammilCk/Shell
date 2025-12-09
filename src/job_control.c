@@ -44,7 +44,6 @@ void remove_job(job_t *j) {
     j->cmdline = NULL;
     j->pgid = 0;
     j->jid = 0;
-    j->running = 0;
 }
 
 void print_jobs(void) {

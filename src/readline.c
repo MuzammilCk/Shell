@@ -4,8 +4,11 @@
 #include <unistd.h>
 #include <termios.h>
 #include <ctype.h>
+#include <dirent.h>
 #include "readline.h"
 #include "builtins.h"
+
+#define MAX_NAME_LEN 1024
 
 #define BUF_SIZE 4096
 
@@ -72,6 +75,7 @@ char *tsh_readline(const char *prompt) {
                 buf[len] = '\0';
                 printf("\b%s \b", buf+pos);
                 for (int i=0;i<(len-pos)+1;i++) printf("\b");
+                fflush(stdout);
             }
         } else if (c == '\033') {
             char seq[2];
@@ -91,7 +95,9 @@ char *tsh_readline(const char *prompt) {
                                  strncpy(buf, h, BUF_SIZE-1); buf[BUF_SIZE-1] = '\0';
                                  len = strlen(buf);
                                  pos = len;
+                                 pos = len;
                                  printf("%s", buf);
+                                 fflush(stdout);
                              }
                          }
                     } else if (seq[1] == 'B') {
@@ -108,7 +114,9 @@ char *tsh_readline(const char *prompt) {
                                 strncpy(buf, h, BUF_SIZE-1); buf[BUF_SIZE-1] = '\0';
                                 len = strlen(buf);
                                 pos = len;
+                                pos = len;
                                 printf("%s", buf);
+                                fflush(stdout);
                             }
                         }
                     }
@@ -116,6 +124,7 @@ char *tsh_readline(const char *prompt) {
             }
         } else if (c == 3) {
             printf("^C\r\n");
+            fflush(stdout);
             buf[0] = '\0';
             len = 0;
             pos = 0;
@@ -125,6 +134,61 @@ char *tsh_readline(const char *prompt) {
                  disable_raw_mode();
                  if (saved_current_line) free(saved_current_line);
                  return NULL;
+             }
+        } else if (c == '\t') { // Tab Completion
+             // Identify word prefix
+             int start = pos;
+             while (start > 0 && !isspace((unsigned char)buf[start-1])) start--;
+             
+             int prefix_len = pos - start;
+             if (prefix_len > 0) {
+                 char prefix[MAX_NAME_LEN];
+                 if (prefix_len >= MAX_NAME_LEN) prefix_len = MAX_NAME_LEN - 1;
+                 strncpy(prefix, buf + start, prefix_len);
+                 prefix[prefix_len] = '\0';
+                 
+                 // Scan directory
+                 DIR *d = opendir(".");
+                 if (d) {
+                     struct dirent *dir;
+                     char match[MAX_NAME_LEN];
+                     int match_count = 0;
+                     
+                     while ((dir = readdir(d)) != NULL) {
+                         if (strncmp(dir->d_name, prefix, prefix_len) == 0) {
+                             // Match found
+                             if (match_count == 0) strncpy(match, dir->d_name, MAX_NAME_LEN);
+                             match_count++;
+                         }
+                     }
+                     closedir(d);
+                     
+                     if (match_count == 1) {
+                         // Unique match, complete it
+                         int suffix_len = strlen(match) - prefix_len;
+                         if (len + suffix_len < BUF_SIZE - 1) {
+                             if (pos < len) {
+                                 memmove(buf+pos+suffix_len, buf+pos, len-pos);
+                             }
+                             strncpy(buf + pos, match + prefix_len, suffix_len);
+                             len += suffix_len;
+                             pos += suffix_len;
+                             buf[len] = '\0';
+                             printf("%s", match + prefix_len);
+                             // If we were in middle, we need to reprint rest?
+                             // Yes if pos < len we moved rest.
+                             if (pos < len) {
+                                 printf("%s", buf + pos);
+                                 for(int i=0;i<(len-pos);i++) printf("\b");
+                             }
+                             fflush(stdout);
+                         }
+                     } else if (match_count > 1) {
+                         // Optional: could list matches, but request said "If exactly one match is found... append"
+                         // Maybe ring bell?
+                         // printf("\a");
+                     }
+                 }
              }
         } else if (!iscntrl(c)) {
              if (len < BUF_SIZE - 1) {
@@ -137,6 +201,7 @@ char *tsh_readline(const char *prompt) {
                  buf[len] = '\0';
                  printf("%c%s", c, buf+pos);
                  for (int i=0;i<(len-pos);i++) printf("\b");
+                 fflush(stdout);
              }
         }
     }
