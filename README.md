@@ -1,28 +1,70 @@
+# TSH - Tiny Enhanced Shell
 
-Features
-- Quotes-aware tokenization (single and double quotes)
-- Multiple pipelines (cmd1 | cmd2 | cmd3 ...)
-- Input (`<`) and output (`>`, `>>`) redirection
-- Background execution with `&`
-- In-memory command history with `history` builtin
-- Basic job control: `jobs`, `fg %jid`
-- Common builtins: `cd`, `pwd`, `help`, `exit`
+A professional, feature-rich C implementation of a Unix shell, designed to demonstrate systems programming concepts including process control, signal handling, and memory management.
 
-Build
------
+## Features
 
-Requires: gcc (POSIX/Linux)
+### System Enhancements
+- **Process Group Management**: Implements rigorous foreground/background process group handling (`setpgid`, `tcsetpgrp` logic simulated via signal forwarding).
+- **Signal Multiplexing**: Professional handling of `SIGINT` (Ctrl+C) and `SIGTSTP` (Ctrl+Z). Signals are trapped and forwarded to the foreground process group, ensuring the shell itself remains responsive.
+- **Job Control**: Full support for job states:
+    - **Foreground**: Standard execution.
+    - **Background**: Execute with `&`.
+    - **Stopped**: Suspend with Ctrl+Z.
+    - **Resume**: Use `bg` to continue in background, `fg` to bring to foreground.
+- **Memory Safety**: Audited memory management for zero leaks during standard operation. `free_jobs` and `free_history` ensure clean shutdown.
+- **Environment Variables**: Builtin `export` and `unset` commands, with `$?` exit status expansion.
 
-From the project root run:
+### User Experience
+- **Custom Prompt**: Informative, colored prompt showing `user@host:path$`.
+- **Line Editing**: Custom raw-mode `readline` implementation providing:
+    - **History Navigation**: Up/Down arrow keys.
+    - **Editing**: Backspace and insertion.
+    - No external dependency on `libreadline`.
+
+## Architecture
+
+The project is modularized for maintainability:
+
+```
+.
+├── include/
+│   ├── builtins.h     # Builtin command prototypes
+│   ├── job_control.h  # Job management structs and signals
+│   ├── parser.h       # Command parsing logic
+│   └── readline.h     # Raw mode input handling
+├── src/
+│   ├── main.c         # Entry point, REPL, signal initialization
+│   ├── builtins.c     # Implementation of cd, jobs, fg, bg, history
+│   ├── job_control.c  # Job list maintenance and SIGCHLD handler
+│   ├── parser.c       # Tokenizer and command parser
+│   └── readline.c     # Terminal raw mode and history logic
+└── Makefile           # Robust build system
+```
+
+## Building
+
+To build the shell, simply run:
 
 ```bash
 make
 ```
 
-This produces the `tsh` executable.
+To build with debug symbols:
 
-Run
----
+```bash
+make debug
+```
+
+## Testing
+
+An integration test suite is provided in `test_shell.py`. It requires Python 3.
+
+```bash
+python3 test_shell.py
+```
+
+## Usage
 
 Start the shell:
 
@@ -30,16 +72,18 @@ Start the shell:
 ./tsh
 ```
 
-Examples:
+### Supported Builtins
+- `cd [dir]`: Change directory.
+- `pwd`: Print working directory.
+- `exit`: Exit the shell.
+- `jobs`: List background/stopped jobs.
+- `fg %jid`: Bring job to foreground.
+- `bg %jid`: Resume stopped job in background.
+- `export KEY=VALUE`: Set environment variable.
+- `unset KEY`: Unset environment variable.
+- `history`: Show command history.
 
-- Run a pipeline: ls -l | grep ".c" | wc -l
-- Redirect output: echo hello > out.txt
-- Append output: echo more >> out.txt
-- Background job: sleep 10 &
-- List jobs: jobs
-- Bring job to foreground: fg %1
-
-Notes
------
-
-This is intentionally small and educational. It is not a full replacement for bash or zsh. Use it to demonstrate systems programming, process control, and signal handling on your resume.
+## Systems Concepts Demonstrated
+- **Waitpid with WUNTRACED**: Correctly detecting stopped children.
+- **Signal Masking/Forwarding**: Ensuring signals reach the correct process group.
+- **Termios Raw Mode**: Implementing custom input handling at the terminal driver level.

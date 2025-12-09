@@ -1,22 +1,21 @@
-# Compiler settings
 CC = gcc
-CFLAGS = -Wall -Wextra -Werror
-
-# Target executable
+CFLAGS = -Wall -Wextra -Iinclude
+SRC = src/main.c src/parser.c src/job_control.c src/builtins.c src/readline.c
+OBJ = $(SRC:.c=.o)
 TARGET = tsh
 
-# Source files
-SRC = tsh.c
+.PHONY: all clean debug
 
-# Default target
 all: $(TARGET)
 
-# Build the target
-$(TARGET): $(SRC)
+$(TARGET): $(OBJ)
 	$(CC) $(CFLAGS) -o $@ $^
 
-# Clean build artifacts
-clean:
-	rm -f $(TARGET) *.o a.out
+%.o: %.c
+	$(CC) $(CFLAGS) -c $< -o $@
 
-.PHONY: all clean
+debug: CFLAGS += -g -DDEBUG
+debug: all
+
+clean:
+	rm -f $(OBJ) $(TARGET)
